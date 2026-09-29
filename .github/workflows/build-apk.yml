@@ -1,0 +1,160 @@
+name: Build Standalone Android APK
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build Type (release or debug)'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+      create_release:
+        description: 'Publish as a GitHub Release (accessible directly on mobile)'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build & Sign Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 3. Setup Java 17 (JDK)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 4. Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 5. Install Dependencies
+        run: |
+          npm install --legacy-peer-deps
+
+      - name: 6. Setup Expo CLI & Prebuild Android Project
+        run: |
+          npx expo prebuild --platform android --clean
+
+      - name: 7. Generate Self-Signed Release Keystore
+        run: |
+          mkdir -p android/app/keystores
+          keytool -genkey -v -keystore android/app/keystores/release.keystore \
+            -alias focuspup-key \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass "focuspup12345" -keypass "focuspup12345" \
+            -dname "CN=FocusPUP, OU=Mobile, O=FocusPUP, L=SanFrancisco, S=CA, C=US"
+
+      - name: 8. Configure Gradle Signing Config
+        run: |
+          # Inject release signing config into android/app/build.gradle
+          python3 - << 'EOF'
+          import re
+
+          gradle_path = 'android/app/build.gradle'
+          with open(gradle_path, 'r') as f:
+              content = f.read()
+
+          signing_block = """
+              signingConfigs {
+                  debug {
+                      storeFile file('debug.keystore')
+                      storePassword 'android'
+                      keyAlias 'androiddebugkey'
+                      keyPassword 'android'
+                  }
+                  release {
+                      storeFile file('keystores/release.keystore')
+                      storePassword 'focuspup12345'
+                      keyAlias 'focuspup-key'
+                      keyPassword 'focuspup12345'
+                  }
+              }
+          """
+
+          # Replace signingConfigs block
+          content = re.sub(r'signingConfigs\s*\{[\s\S]*?\}\s*\}', signing_block + '\n    }', content, count=1)
+          # Ensure release buildType uses signingConfigs.release
+          content = re.sub(r'signingConfig\s+signingConfigs\.debug', 'signingConfig signingConfigs.release', content)
+
+          with open(gradle_path, 'w') as f:
+              f.write(content)
+          EOF
+
+      - name: 9. Compile Android APK with Gradle
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          if [ "${{ github.event.inputs.build_type }}" = "debug" ]; then
+            ./gradlew assembleDebug --no-daemon
+          else
+            ./gradlew assembleRelease --no-daemon
+          fi
+
+      - name: 10. Locate and Prepare Output APK
+        run: |
+          mkdir -p output-apk
+          # Locate generated APK
+          FOUND_APK=$(find android/app/build/outputs/apk/ -name "*.apk" | head -n 1)
+          if [ -z "$FOUND_APK" ]; then
+            echo "❌ No APK found in build outputs!"
+            exit 1
+          fi
+          echo "Found APK at: $FOUND_APK"
+          cp "$FOUND_APK" output-apk/FocusPUP-v1.0.0.apk
+          echo "APK_PATH=output-apk/FocusPUP-v1.0.0.apk" >> $GITHUB_ENV
+
+      - name: 11. Verify APK Signature (Android apksigner)
+        run: |
+          ANDROID_BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+          echo "Using Android Build Tools at: $ANDROID_BUILD_TOOLS"
+          $ANDROID_BUILD_TOOLS/apksigner verify --verbose $APK_PATH || true
+
+      - name: 12. Upload APK Artifact (Downloadable from GitHub Actions run)
+        uses: actions/upload-artifact@v4
+        with:
+          name: FocusPUP-Android-APK
+          path: ${{ env.APK_PATH }}
+          retention-days: 30
+
+      - name: 13. Create GitHub Release with APK Attachment
+        if: github.event.inputs.create_release != 'false' || startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name || 'v1.0.0' }}
+          name: "FocusPUP Android APK - ${{ github.ref_name || 'v1.0.0' }}"
+          body: |
+            ### 🐾 FocusPUP Standalone Android APK Release
+
+            **Download & Install Instructions:**
+            1. Download the `FocusPUP-v1.0.0.apk` asset below directly onto your Android device.
+            2. Tap the downloaded file in your notifications or Files app.
+            3. When prompted, select **Settings** → enable **"Allow from this source"** / **"Install unknown apps"**.
+            4. Tap **Install** and enjoy your cozy study companion!
+
+            - **Version**: 1.0.0
+            - **Platform**: Android 12+ (SDK 31-34)
+            - **Package**: `com.focuspup.app`
+          files: ${{ env.APK_PATH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

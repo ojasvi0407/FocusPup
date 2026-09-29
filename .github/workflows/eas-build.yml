@@ -1,0 +1,39 @@
+name: EAS Cloud Build (Optional)
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'EAS Build Profile'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - production
+          - development
+
+jobs:
+  eas-build:
+    name: Trigger EAS Android Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 2. Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 3. Setup EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 4. Install Dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: 5. Run EAS Build
+        run: eas build --platform android --profile ${{ github.event.inputs.profile }} --non-interactive
