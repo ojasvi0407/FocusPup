@@ -50,12 +50,10 @@ jobs:
         uses: android-actions/setup-android@v4
 
       - name: 5. Install Dependencies
-        run: |
-          npm install --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: 6. Setup Expo CLI & Prebuild Android Project
-        run: |
-          npx expo prebuild --platform android --clean
+        run: npx expo prebuild --platform android --clean
 
       - name: 7. Generate Self-Signed Release Keystore
         run: |
@@ -67,38 +65,7 @@ jobs:
             -dname "CN=FocusPUP, OU=Mobile, O=FocusPUP, L=SanFrancisco, S=CA, C=US"
 
       - name: 8. Configure Gradle Signing Config
-        run: |
-          # Inject release signing config into android/app/build.gradle
-          python3 - << 'EOF'
-          import re
-
-          gradle_path = 'android/app/build.gradle'
-          with open(gradle_path, 'r') as f:
-              content = f.read()
-
-          signing_block = """    signingConfigs {
-        debug {
-            storeFile file('debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
-        }
-        release {
-            storeFile file('keystores/release.keystore')
-            storePassword 'focuspup12345'
-            keyAlias 'focuspup-key'
-            keyPassword 'focuspup12345'
-        }
-    }"""
-
-          # Replace signingConfigs block
-          content = re.sub(r'signingConfigs\s*\{[\s\S]*?\}\s*\}', signing_block, content, count=1)
-          # Ensure release buildType uses signingConfigs.release
-          content = re.sub(r'(release\s*\{[\s\S]*?signingConfig\s+)signingConfigs\.debug', r'\1signingConfigs.release', content)
-
-          with open(gradle_path, 'w') as f:
-              f.write(content)
-          EOF
+        run: node scripts/configure-signing.js
 
       - name: 9. Compile Android APK with Gradle
         working-directory: android
@@ -113,7 +80,6 @@ jobs:
       - name: 10. Locate and Prepare Output APK
         run: |
           mkdir -p output-apk
-          # Locate generated APK
           FOUND_APK=$(find android/app/build/outputs/apk/ -name "*.apk" | head -n 1)
           if [ -z "$FOUND_APK" ]; then
             echo "❌ No APK found in build outputs!"
@@ -129,7 +95,7 @@ jobs:
         run: |
           ANDROID_BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
           echo "Using Android Build Tools at: $ANDROID_BUILD_TOOLS"
-          $ANDROID_BUILD_TOOLS/apksigner verify --verbose $APK_PATH || true
+          $ANDROID_BUILD_TOOLS/apksigner verify --verbose ${{ env.APK_PATH }} || true
 
       - name: 12. Upload APK Artifact (Downloadable from GitHub Actions run)
         uses: actions/upload-artifact@v4
@@ -139,11 +105,11 @@ jobs:
           retention-days: 30
 
       - name: 13. Create GitHub Release with APK Attachment
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: "FocusPUP Android APK - ${{ github.ref_name }}"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', env.APP_VERSION) }}
+          name: "FocusPUP Android APK - ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', env.APP_VERSION) }}"
           body: |
             ### 🐾 FocusPUP Standalone Android APK Release
 
