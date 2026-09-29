@@ -28,15 +28,17 @@ jobs:
   build-apk:
     name: Build & Sign Android APK
     runs-on: ubuntu-latest
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: 'true'
 
     steps:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. Setup Node.js 20
+      - name: 2. Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: 3. Setup Java 17 (JDK)
         uses: actions/setup-java@v5
@@ -45,7 +47,7 @@ jobs:
           java-version: '17'
       
       - name: 4. Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: 5. Install Dependencies
         run: |
@@ -74,27 +76,25 @@ jobs:
           with open(gradle_path, 'r') as f:
               content = f.read()
 
-          signing_block = """
-              signingConfigs {
-                  debug {
-                      storeFile file('debug.keystore')
-                      storePassword 'android'
-                      keyAlias 'androiddebugkey'
-                      keyPassword 'android'
-                  }
-                  release {
-                      storeFile file('keystores/release.keystore')
-                      storePassword 'focuspup12345'
-                      keyAlias 'focuspup-key'
-                      keyPassword 'focuspup12345'
-                  }
-              }
-          """
+          signing_block = """    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+        release {
+            storeFile file('keystores/release.keystore')
+            storePassword 'focuspup12345'
+            keyAlias 'focuspup-key'
+            keyPassword 'focuspup12345'
+        }
+    }"""
 
           # Replace signingConfigs block
-          content = re.sub(r'signingConfigs\s*\{[\s\S]*?\}\s*\}', signing_block + '\n    }', content, count=1)
+          content = re.sub(r'signingConfigs\s*\{[\s\S]*?\}\s*\}', signing_block, content, count=1)
           # Ensure release buildType uses signingConfigs.release
-          content = re.sub(r'signingConfig\s+signingConfigs\.debug', 'signingConfig signingConfigs.release', content)
+          content = re.sub(r'(release\s*\{[\s\S]*?signingConfig\s+)signingConfigs\.debug', r'\1signingConfigs.release', content)
 
           with open(gradle_path, 'w') as f:
               f.write(content)
