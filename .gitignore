@@ -6,3 +6,15 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Expo / React Native generated
+android/
+ios/
+.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/

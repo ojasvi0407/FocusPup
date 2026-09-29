@@ -24,6 +24,6 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src/**/*", "types.ts"],
-  "exclude": ["node_modules", "expo-src"]
+  "include": ["src/**/*", "expo-src/**/*", "types.ts"],
+  "exclude": ["node_modules"]
 }

@@ -36,7 +36,7 @@ jobs:
       - name: 2. Setup Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 20
 
       - name: 3. Setup Java 17 (JDK)
         uses: actions/setup-java@v5
@@ -46,8 +46,6 @@ jobs:
       
       - name: 4. Setup Android SDK
         uses: android-actions/setup-android@v3
-      - name: Build Android APK
-        run: ./gradlew assembleDebug
 
       - name: 5. Install Dependencies
         run: |
@@ -122,8 +120,10 @@ jobs:
             exit 1
           fi
           echo "Found APK at: $FOUND_APK"
-          cp "$FOUND_APK" output-apk/FocusPUP-v1.0.0.apk
-          echo "APK_PATH=output-apk/FocusPUP-v1.0.0.apk" >> $GITHUB_ENV
+          APP_VERSION=$(node -p "require('./app.json').expo.version")
+          cp "$FOUND_APK" "output-apk/FocusPUP-v${APP_VERSION}.apk"
+          echo "APK_PATH=output-apk/FocusPUP-v${APP_VERSION}.apk" >> $GITHUB_ENV
+          echo "APP_VERSION=${APP_VERSION}" >> $GITHUB_ENV
 
       - name: 11. Verify APK Signature (Android apksigner)
         run: |
@@ -139,21 +139,21 @@ jobs:
           retention-days: 30
 
       - name: 13. Create GitHub Release with APK Attachment
-        if: github.event.inputs.create_release != 'false' || startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name || 'v1.0.0' }}
-          name: "FocusPUP Android APK - ${{ github.ref_name || 'v1.0.0' }}"
+          tag_name: ${{ github.ref_name }}
+          name: "FocusPUP Android APK - ${{ github.ref_name }}"
           body: |
             ### 🐾 FocusPUP Standalone Android APK Release
 
             **Download & Install Instructions:**
-            1. Download the `FocusPUP-v1.0.0.apk` asset below directly onto your Android device.
+            1. Download the `FocusPUP-v${{ env.APP_VERSION }}.apk` asset below directly onto your Android device.
             2. Tap the downloaded file in your notifications or Files app.
             3. When prompted, select **Settings** → enable **"Allow from this source"** / **"Install unknown apps"**.
             4. Tap **Install** and enjoy your cozy study companion!
 
-            - **Version**: 1.0.0
+            - **Version**: ${{ env.APP_VERSION }}
             - **Platform**: Android 12+ (SDK 31-34)
             - **Package**: `com.focuspup.app`
           files: ${{ env.APK_PATH }}
