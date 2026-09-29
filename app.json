@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "FocusPUP",
+    "slug": "focuspup",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAF7F2"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.focuspup.app",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"],
+        "NSMicrophoneUsageDescription": "FocusPUP uses audio playback for ambient lo-fi soundscapes."
+      }
+    },
+    "android": {
+      "package": "com.focuspup.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FAF7F2"
+      },
+      "permissions": [
+        "VIBRATE",
+        "WAKE_LOCK"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-haptics",
+      [
+        "expo-av",
+        {
+          "microphonePermission": false
+        }
+      ]
+    ]
+  }
+}

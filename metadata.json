@@ -1,0 +1,6 @@
+{
+  "name": "FocusPUP - Cozy Study Sanctuary & Academic Planner",
+  "description": "Cross-platform mobile Pomodoro focus app featuring an animated pixel Pomeranian study companion, academic calendar, subject hour vault, and cozy lo-fi room upgrades.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
